@@ -1,316 +1,204 @@
-# Ex.No: 10  Implementation of Flappy bird game
+# Ex.No: 10  Implementation of 2D/3D game 
 ### DATE:                                                                            
-### REGISTER NUMBER : 212222240053 
+### REGISTER NUMBER : 212222240053
 ### AIM: 
-To develop a game flappy bird in Unity 
+To develop a 2D Fruit Catcher Game using Unity Engine. 
 ### Algorithm:
 ```
-Player.cs
-1. Initialize SpriteRenderer component.
-2. Start sprite animation loop every 0.15 seconds.
-3. On enabling the player:
-      a. Reset vertical position to 0.
-      b. Reset movement direction to zero.
-4. Every frame (Update):
-      a. If space key or left mouse button pressed, set upward movement direction.
-      b. Apply gravity to the vertical direction.
-      c. Update player position based on direction.
-      d. Tilt the player based on vertical movement speed.
-5. Animate player sprite by cycling through sprite frames.
-6. On collision with:
-      a. Obstacle tag → trigger game over.
-      b. Scoring tag → increase score.
-```
-```
-GameManager.cs
-1. On awake:
-    a. Ensure singleton instance of the game manager.
-2. On start:
-    a. Pause the game (stop time, disable player controls).
-3. Pause() method:
-    a. Set game time scale to 0 (freeze game).
-    b. Disable player controls.
-4. Play() method:
-    a. Reset score to zero and update UI.
-    b. Hide play button and game over UI.
-    c. Enable player controls and start game (set time scale to 1).
-    d. Find all existing pipes and destroy them to reset obstacles.
-5. GameOver() method:
-    a. Show play button and game over UI.
-    b. Pause the game.
-6. IncreaseScore() method:
-      a. Increment score and update UI.
-```
-```
-Parallax.cs
-1. On awake:
-    a. Get MeshRenderer component of the background.
-2. Every frame (Update):
-    b. Continuously move the texture offset horizontally to create parallax scrolling effect.
-```
-```
-Pipes.cs
-1. On start:
-    a. Calculate left boundary off-screen for pipe destruction.
-2. Position top pipe upwards by half the gap.
-    a. Position bottom pipe downwards by half the gap.
-3. Every frame (Update):
-    a. Move the pipe leftwards by speed.
-    b. If pipe moves beyond left boundary, destroy the pipe object.
-```
-```
-Spawner.cs
-1. When enabled:
-    a. Start repeatedly invoking the Spawn() method at a fixed spawn rate.
-2. When disabled:
-    a. Cancel any repeating spawn invocations.
-3. Spawn() method:
-    a. Instantiate a new pipe prefab at the spawner's position.
-    b. Randomly adjust the vertical position of the pipe within min and max height.
+1. Start Unity Hub and create a new project using the 2D Template.
+
+Design the scene by adding:
+
+2. A basket (player object) with collider for catching fruits.
+
+3. Falling fruit prefabs with Rigidbody2D and collider components.
+
+4. A UI canvas for score, lives, and game-over text.
+
+Create and attach scripts to handle:
+
+5. Basket movement using arrow keys (PlayerController.cs).
+
+6. Fruit falling behavior and collision detection (Fruit.cs).
+
+7. Game management, score, and lives (GameManager.cs).
+
+8. Spawning fruits at random positions (FruitSpawner.cs).
+
+Set up prefabs and colliders:
+
+9. Assign box collider to basket.
+
+10. Assign circle collider and Rigidbody2D to fruits.
+
+11. Adjust collider sizes and gravity to control speed.
+
+Implement UI Logic:
+
+12. Update score when a fruit is caught.
+
+13. Decrease life when a fruit hits the ground.
+
+14. Display “Game Over” panel when lives = 0.
+
+Test and Debug:
+
+15. Ensure fruits fall at consistent speed.
+
+16. Confirm UI updates correctly.
+
+17. Test restart button functionality.
+
+Build the Game:
+
+18. Export the final game for PC or Android.
 ```  
 ### Program:
-Player.cs
+
+### PlayerController.cs
 ```
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
-public class Player : MonoBehaviour
+public class PlayerController : MonoBehaviour
 {
-    public Sprite[] sprites;
-    public float strength = 5f;
-    public float gravity = -9.81f;
-    public float tilt = 5f;
+    public float speed = 7f;
+    public float xLimit = 7.5f; // set to fit your camera view
 
-    private SpriteRenderer spriteRenderer;
-    private Vector3 direction;
-    private int spriteIndex;
-
-    private void Awake()
+    void Update()
     {
-        spriteRenderer = GetComponent<SpriteRenderer>();
-    }
-
-    private void Start()
-    {
-        InvokeRepeating(nameof(AnimateSprite), 0.15f, 0.15f);
-    }
-
-    private void OnEnable()
-    {
-        Vector3 position = transform.position;
-        position.y = 0f;
-        transform.position = position;
-        direction = Vector3.zero;
-    }
-
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0)) {
-            direction = Vector3.up * strength;
-        }
-
-        // Apply gravity and update the position
-        direction.y += gravity * Time.deltaTime;
-        transform.position += direction * Time.deltaTime;
-
-        // Tilt the bird based on the direction
-        Vector3 rotation = transform.eulerAngles;
-        rotation.z = direction.y * tilt;
-        transform.eulerAngles = rotation;
-    }
-
-    private void AnimateSprite()
-    {
-        spriteIndex++;
-
-        if (spriteIndex >= sprites.Length) {
-            spriteIndex = 0;
-        }
-
-        if (spriteIndex < sprites.Length && spriteIndex >= 0) {
-            spriteRenderer.sprite = sprites[spriteIndex];
-        }
-    }
-
-    private void OnTriggerEnter2D(Collider2D other)
-    {
-        if (other.gameObject.CompareTag("Obstacle")) {
-            GameManager.Instance.GameOver();
-        } else if (other.gameObject.CompareTag("Scoring")) {
-            GameManager.Instance.IncreaseScore();
-        }
-    }
-
-}
-```
-GameManager.cs
-```
-using UnityEngine;
-using UnityEngine.UI;
-
-[DefaultExecutionOrder(-1)]
-public class GameManager : MonoBehaviour
-{
-    public static GameManager Instance { get; private set; }
-
-     [SerializeField]private Player player;
-     [SerializeField]private Spawner spawner;
-     [SerializeField]private Text scoreText;
-     [SerializeField]private GameObject playButton;
-     [SerializeField]private GameObject gameOver;
-
-    public int score { get; private set; } = 0;
-
-    private void Awake()
-    {
-        if (Instance != null) {
-            DestroyImmediate(gameObject);
-        } else {
-            Instance = this;
-        }
-    }
-
-    private void OnDestroy()
-    {
-        if (Instance == this) {
-            Instance = null;
-        }
-    }
-
-    private void Start()
-    {
-        Pause();
-    }
-
-    public void Pause()
-    {
-        Time.timeScale = 0f;
-        player.enabled = false;
-    }
-
-    public void Play()
-{
-    score = 0;
-    scoreText.text = score.ToString();
-
-    playButton.SetActive(false);
-    gameOver.SetActive(false);
-
-    Time.timeScale = 1f;
-    player.enabled = true;
-
-    Pipes[] pipes = FindObjectsByType<Pipes>(FindObjectsSortMode.None);
-
-    for (int i = 0; i < pipes.Length; i++) {
-        Destroy(pipes[i].gameObject);
+        float move = Input.GetAxis("Horizontal"); // A/D or Left/Right
+        Vector3 pos = transform.position;
+        pos.x += move * speed * Time.deltaTime;
+        pos.x = Mathf.Clamp(pos.x, -xLimit, xLimit);
+        transform.position = pos;
     }
 }
 
-    public void GameOver()
-    {
-        playButton.SetActive(true);
-        gameOver.SetActive(true);
-
-        Pause();
-    }
-
-    public void IncreaseScore()
-    {
-        score++;
-        scoreText.text = score.ToString();
-    }
-
-}
 ```
-Parallax.cs
+### Fruit.cs
 ```
 using UnityEngine;
 
-public class Parallax : MonoBehaviour
+public class Fruit : MonoBehaviour
 {
-    public float animationSpeed = 1f;
-    private MeshRenderer meshRenderer;
-
-    private void Awake()
+    void OnTriggerEnter2D(Collider2D other)
     {
-        meshRenderer = GetComponent<MeshRenderer>();
-    }
-
-    private void Update()
-    {
-        meshRenderer.material.mainTextureOffset += new Vector2(animationSpeed * Time.deltaTime, 0);
-    }
-
-}
-
-```
-Pipes.cs
-```
-using UnityEngine;
-
-public class Pipes : MonoBehaviour
-{
-    public Transform top;
-    public Transform bottom;
-    public float speed = 5f;
-    public float gap = 3f;
-
-    private float leftEdge;
-
-    private void Start()
-    {
-        leftEdge = Camera.main.ScreenToWorldPoint(Vector3.zero).x - 1f;
-        top.position += Vector3.up * gap / 2;
-        bottom.position += Vector3.down * gap / 2;
-    }
-
-    private void Update()
-    {
-        transform.position += speed * Time.deltaTime * Vector3.left;
-
-        if (transform.position.x < leftEdge) {
+        if (other.CompareTag("Player"))
+        {
+            GameManager.instance.AddScore(1);
+            Destroy(gameObject);
+        }
+        else if (other.CompareTag("Ground"))
+        {
+            GameManager.instance.LoseLife(1);
             Destroy(gameObject);
         }
     }
-
 }
+
 ```
-Spawner.cs
+### GameManager.cs
+```
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using TMPro;
+using UnityEngine.UI;
+
+public class GameManager : MonoBehaviour
+{
+    public static GameManager instance;
+    public TMP_Text scoreText;
+    public TMP_Text livesText;
+    public GameObject gameOverPanel;
+    public Button restartButton;
+    public int lives = 3;
+    private int score = 0;
+
+    void Awake()
+    {
+        if (instance == null) instance = this;
+        else Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        UpdateUI();
+        Time.timeScale = 1f;
+    }
+
+    public void AddScore(int amount)
+    {
+        score += amount;
+        UpdateUI();
+    }
+
+    public void LoseLife(int amount)
+    {
+        lives -= amount;
+        UpdateUI();
+        if (lives <= 0) GameOver();
+    }
+
+    void UpdateUI()
+    {
+        if (scoreText != null) scoreText.text = "Score: " + score;
+        if (livesText != null) livesText.text = "Lives: " + lives;
+    }
+
+    void GameOver()
+    {
+        Time.timeScale = 0f; // pause game
+        if (gameOverPanel != null) gameOverPanel.SetActive(true);
+    }
+
+    // Hook this to Restart button
+    public void RestartGame()
+    {
+        Time.timeScale = 1f;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+}
+
+```
+### FruitSpawner.cs
 ```
 using UnityEngine;
 
-public class Spawner : MonoBehaviour
+public class FruitSpawner : MonoBehaviour
 {
-    public GameObject prefab;
-    //public Pipes prefab;
-    public float spawnRate = 1f;
-    public float minHeight = -1f;
-    public float maxHeight = 2f;
-    public float verticalGap = 3f;
+    public GameObject[] fruitPrefabs;
+    public float spawnInterval = 1.2f;
+    public float xRange = 7f;
+    private float timer;
 
-    private void OnEnable()
+    void Update()
     {
-        InvokeRepeating(nameof(Spawn), spawnRate, spawnRate);
+        timer += Time.deltaTime;
+        if (timer >= spawnInterval)
+        {
+            float x = Random.Range(-xRange, xRange);
+            Vector2 spawnPos = new Vector2(x, 6f);
+            int randomIndex = Random.Range(0, fruitPrefabs.Length);
+            Instantiate(fruitPrefabs[randomIndex], spawnPos, Quaternion.identity);
+            timer = 0f;
+        }
     }
-
-    private void OnDisable()
-    {
-        CancelInvoke(nameof(Spawn));
-    }
-
-    private void Spawn()
-    {
-        GameObject pipes = Instantiate(prefab, transform.position, Quaternion.identity);
-        pipes.transform.position += Vector3.up * Random.Range(minHeight, maxHeight);
-    }
-
 }
+
 ```
 ### Output:
-![image](https://github.com/user-attachments/assets/11ed6b27-8603-4d05-866d-e182abc50001)
-![image](https://github.com/user-attachments/assets/bdcddd97-54a2-473f-832a-0e8456b6a0f7)
-![image](https://github.com/user-attachments/assets/383791ab-a488-4f68-b3a0-69c64875c1c7)
 
+<img width="1915" height="1018" alt="image" src="https://github.com/user-attachments/assets/53130d4b-8f80-44ea-8173-61538a287466" />
+
+<img width="1920" height="1080" alt="Screenshot (384)" src="https://github.com/user-attachments/assets/7ad621b4-d54b-43c6-a5e8-2e73ebfbcbcb" />
+
+<img width="1919" height="1020" alt="Screenshot 2025-11-08 195635" src="https://github.com/user-attachments/assets/9642f440-e342-494a-8f69-460429c50fe1" />
+
+
+<img width="1919" height="1022" alt="image" src="https://github.com/user-attachments/assets/cf8766c9-e54b-418a-9923-c885a5d5c9fd" />
 
 
 ### Result:
-Thus the game was developed using Unity and it is successfully executed.
+Thus, the 2D Fruit Catcher Game was successfully developed using Unity Engine, and it adopted basic Artificial Intelligence concepts such as object collision detection and game state management.
